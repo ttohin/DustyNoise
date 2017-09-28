@@ -3,6 +3,7 @@
 	Properties
 	{
 		_MainTex ("Texture", 2D) = "white" {}
+		_DrawingTex ("DrawingTexture", 2D) = "white" {}
 		_Offset ("Offset", Range(0,1)) = 0.0
 		_Color1 ("Color1", Color) = (1,1,1,1)
 		_Color2 ("Color2", Color) = (0.3,0.3,0.35,1)
@@ -39,6 +40,7 @@
 			};
 
 			sampler2D _MainTex;
+			sampler2D _DrawingTex;
 			float4 _MainTex_ST;
 		    float _Offset;
 		    fixed4 _Color1;
@@ -71,6 +73,8 @@
 				float4 col = tex2D(_MainTex, i.uv);
 
                 float value = col.r + _Offset;
+                fixed4 drawingTextureColor = tex2D(_DrawingTex, i.uv);
+                value = value + drawingTextureColor.r;
 
                 float darkLevel = GetValueFromStep(value, _DarkSteps);
                 float colorLevel = GetValueFromStep(value, _ColorSteps);

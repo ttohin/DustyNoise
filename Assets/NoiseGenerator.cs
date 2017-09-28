@@ -1,6 +1,12 @@
 ﻿using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+public enum MouseMode {
+    Overload,
+    QuantumBubles,
+    Simple,
+    BrokenLens,
+}
 
 public class NoiseGenerator : MonoBehaviour {
 
@@ -11,10 +17,10 @@ public class NoiseGenerator : MonoBehaviour {
     [Range (1, 100)]
     public float Roughness = 20.0f;
     private int noizeSize = 1024;
-    private int textureSize = 1024;
-    private int textureHeight;
-    private int textureWidth;
-    private Texture2D texture;
+    private int drawingTextureSize = 256;
+    private int drawingTextureHeight;
+    private int drawingTextureWidth;
+    private Texture2D drawingTexture;
 
     [Range (1, 50)]
     public int Layers = 12;
@@ -23,15 +29,18 @@ public class NoiseGenerator : MonoBehaviour {
     public int ColorLayers = 3;
     private float offset = 0.0f;
     private Vector2? mousePosition;
-    private float mouseValue = 0.0f;
+    private bool isLeftMouseButton = true;
     private bool mouseIsDown = false;
+    public MouseMode mouseMode = MouseMode.QuantumBubles;
     private void Start () {
 
+        mouseMode = (MouseMode) (Random.value * System.Enum.GetNames (typeof (MouseMode)).Length);
+
         var colors = new Color[] {
-        new Color32 (37, 105, 121, 255),
-        new Color32 (157, 117, 68, 255),
-        new Color32 (154, 192, 203, 255),
-        new Color32 (255, 255, 255, 255),
+            new Color32 (37, 105, 121, 255),
+            new Color32 (157, 117, 68, 255),
+            new Color32 (154, 192, 203, 255),
+            new Color32 (255, 255, 255, 255),
         };
 
         int colorIndex1 = (int) Mathf.Floor (Random.value * colors.Length);
@@ -54,16 +63,20 @@ public class NoiseGenerator : MonoBehaviour {
 
         int verticalOffset = 0;
         int horizontalOffset = 0;
+        float horizontalScreenRatio = 1;
+        float verticalScreenRatio = 1;
+        int textureWidth;
+        int textureHeight;
         if (Screen.width > Screen.height) {
-            float ratio = (float) Screen.height / (float) Screen.width;
-            textureWidth = textureSize;
-            textureHeight = (int) ((float) textureSize * ratio);
-            verticalOffset = (textureSize - textureHeight) / 2;
+            horizontalScreenRatio = (float) Screen.height / (float) Screen.width;
+            textureWidth = noizeSize;
+            textureHeight = (int) ((float) noizeSize * horizontalScreenRatio);
+            verticalOffset = (noizeSize - textureHeight) / 2;
         } else {
-            float ratio = (float) Screen.width / (float) Screen.height;
-            textureHeight = textureSize;
-            textureWidth = (int) ((float) textureSize * ratio);
-            horizontalOffset = (textureSize - textureWidth) / 2;
+            verticalScreenRatio = (float) Screen.width / (float) Screen.height;
+            textureHeight = noizeSize;
+            textureWidth = (int) ((float) noizeSize * verticalScreenRatio);
+            horizontalOffset = (noizeSize - textureWidth) / 2;
         }
 
         var noise = new DiamondSquareGenerator (noizeSize, noizeSize, Roughness, RandDelta, true);
@@ -71,12 +84,10 @@ public class NoiseGenerator : MonoBehaviour {
         //noise.data.Fill(0.0f);
 
         noise.data.ForEach ((value, x, y) => {
-            var scaledValue = value * 6;
-            var normilizedValue = Mathf.Ceil (scaledValue) - scaledValue;
-            noise.data.Set (normilizedValue, x, y);
+            noise.data.Set (GetValueFromStep (value, 6), x, y);
         });
 
-        texture = new Texture2D (textureWidth, textureHeight);
+        var texture = new Texture2D (textureWidth, textureHeight);
         texture.filterMode = FilterMode.Point;
         for (int i = 0; i < textureWidth; i++) {
 
@@ -88,7 +99,19 @@ public class NoiseGenerator : MonoBehaviour {
             }
         }
 
-        texture.Apply (true, false);
+        texture.Apply (false, true);
+
+        drawingTextureHeight = (int) (drawingTextureSize * horizontalScreenRatio);
+        drawingTextureWidth = (int) (drawingTextureSize * verticalScreenRatio);
+        drawingTexture = new Texture2D (drawingTextureWidth, drawingTextureHeight);
+        drawingTexture.filterMode = FilterMode.Trilinear;
+        for (int i = 0; i < drawingTextureWidth; i++) {
+            for (int j = 0; j < drawingTextureHeight; j++) {
+                drawingTexture.SetPixel (i, j, new Color (0.5f, 0.5f, 0.5f));
+            }
+        }
+        drawingTexture.Apply ();
+        GetComponent<Renderer> ().material.SetTexture (name: "_DrawingTex", value : drawingTexture);
 
         GetComponent<Renderer> ().material.mainTexture = texture;
 
@@ -103,40 +126,149 @@ public class NoiseGenerator : MonoBehaviour {
             yield return new WaitForSeconds (0.0005f);
         }
     }
+    private float GetValueFromStep (float value, float steps) {
+        float scaledValue = value * steps;
+        return Mathf.Ceil (scaledValue) - scaledValue;
+    }
 
     void UpdateTexture () {
         if (!mouseIsDown)
             return;
 
         Vector2 mousePosInTexture = new Vector2 (
-            mousePosition.Value.x * textureWidth,
-            mousePosition.Value.y * textureHeight
+            mousePosition.Value.x * drawingTextureWidth,
+            mousePosition.Value.y * drawingTextureHeight
         );
 
-        for (int i = 0; i < textureWidth; i++) {
-            for (int j = 0; j < textureHeight; j++) {
-
-                Vector2 pos = new Vector2(i, j);
-                Vector2 distance = pos - mousePosInTexture;
-
-                float maxDistance = 8000.0f;
-                if (distance.sqrMagnitude > maxDistance)
-                    continue;
-
-                float ratio = (maxDistance - distance.sqrMagnitude) / maxDistance;
-                ratio = ratio * ratio;
-                
-                var color = texture.GetPixel(i, j);
-
-                float value = ratio * mouseValue;
-                value = color.r + value;
-
-                texture.SetPixel(i, j, new Color(value, value, value));
+        for (int i = 0; i < drawingTextureWidth; i++) {
+            for (int j = 0; j < drawingTextureHeight; j++) {
+                if (mouseMode == MouseMode.QuantumBubles)
+                    QuantumBublesMouseMode (mousePosInTexture, drawingTexture, i, j, isLeftMouseButton);
+                else if (mouseMode == MouseMode.Overload)
+                    OverloadMouseMode (mousePosInTexture, drawingTexture, i, j, isLeftMouseButton);
+                else if (mouseMode == MouseMode.Simple)
+                    SimpleMouseMode (mousePosInTexture, drawingTexture, i, j, isLeftMouseButton);
+                else if (mouseMode == MouseMode.BrokenLens)
+                    BrokenLensMouseMode (mousePosInTexture, drawingTexture, i, j, isLeftMouseButton);
             }
         }
 
-        texture.Apply();
+        drawingTexture.Apply ();
 
+    }
+    static void BrokenLensMouseMode (Vector2 mousePosInTexture, Texture2D texture, int i, int j, bool isLeftMouseButton) {
+        Vector2 pos = new Vector2 (i, j);
+        Vector2 distance = pos - mousePosInTexture;
+
+        float maxDistance = 800.0f;
+        if (distance.sqrMagnitude > maxDistance)
+            return;
+
+        float ratio = (maxDistance - distance.sqrMagnitude) / maxDistance;
+        ratio = ratio * ratio * ratio;
+
+        var colorsAround = new Color[] {
+            texture.GetPixel (i + 0, j + 0),
+            texture.GetPixel (i + 1, j + 1),
+            texture.GetPixel (i + 1, j + 0),
+            texture.GetPixel (i + 1, j - 1),
+            texture.GetPixel (i - 1, j + 1),
+            texture.GetPixel (i - 1, j + 0),
+            texture.GetPixel (i - 1, j - 1),
+            texture.GetPixel (i + 0, j - 1),
+            texture.GetPixel (i + 0, j + 1),
+        };
+
+        var colorsSum = 0.0f;
+        foreach (var item in colorsAround) {
+            colorsSum += item.r;
+        }
+
+        float lensValue = 0;
+        if (isLeftMouseButton)
+            lensValue = colorsAround[0].r * 0.9f + ratio * colorsSum / colorsAround.Length;
+        else
+            lensValue = colorsAround[0].r * (1.0f - ratio) + ratio * (-0.5f + Random.value * 1.5f);
+
+        float value =  lensValue;
+
+        texture.SetPixel (i, j, new Color (value, value, value));
+    }
+
+    static void QuantumBublesMouseMode (Vector2 mousePosInTexture, Texture2D texture, int i, int j, bool isLeftMouseButton) {
+        Vector2 pos = new Vector2 (i, j);
+        Vector2 distance = pos - mousePosInTexture;
+
+        float maxDistance = 800.0f;
+        if (distance.sqrMagnitude > maxDistance)
+            return;
+
+        float ratio = (maxDistance - distance.sqrMagnitude) / maxDistance;
+        ratio = 3 * ratio * ratio;
+
+        var color = texture.GetPixel (i, j);
+        var colorsAround = new Color[] {
+            texture.GetPixel (i + 1, j + 1),
+            texture.GetPixel (i + 1, j + 0),
+            texture.GetPixel (i + 1, j - 1),
+            texture.GetPixel (i - 1, j + 1),
+            texture.GetPixel (i - 1, j + 0),
+            texture.GetPixel (i - 1, j - 1),
+            texture.GetPixel (i + 0, j - 1),
+            texture.GetPixel (i + 0, j + 1),
+        };
+
+        var colorsSum = 0.0f;
+        foreach (var item in colorsAround) {
+            colorsSum += item.r;
+        }
+
+        float value = color.r + ratio * (isLeftMouseButton ? 0.005f : -0.005f);
+        value = value * 0.8f + (colorsSum / colorsAround.Length) * 0.2f;
+
+        if (value > 1) value = 0;
+        if (value < 0) value = 1;
+
+        texture.SetPixel (i, j, new Color (value, value, value));
+    }
+
+    static void SimpleMouseMode (Vector2 mousePosInTexture, Texture2D texture, int i, int j, bool isLeftMouseButton) {
+        Vector2 pos = new Vector2 (i, j);
+        Vector2 distance = pos - mousePosInTexture;
+
+        float maxDistance = 800.0f;
+        if (distance.sqrMagnitude > maxDistance)
+            return;
+
+        float ratio = (maxDistance - distance.sqrMagnitude) / maxDistance;
+        ratio = 3 * ratio * ratio;
+
+        var color = texture.GetPixel (i, j);
+        float value = color.r + ratio * (isLeftMouseButton ? 0.005f : -0.005f);
+
+        if (value > 1) value = 1;
+        if (value < 0) value = 0;
+
+        texture.SetPixel (i, j, new Color (value, value, value));
+    }
+    static void OverloadMouseMode (Vector2 mousePosInTexture, Texture2D texture, int i, int j, bool isLeftMouseButton) {
+        Vector2 pos = new Vector2 (i, j);
+        Vector2 distance = pos - mousePosInTexture;
+
+        float maxDistance = 800.0f;
+        if (distance.sqrMagnitude > maxDistance)
+            return;
+
+        float ratio = (maxDistance - distance.sqrMagnitude) / maxDistance;
+        ratio = 3 * ratio * ratio;
+
+        var color = texture.GetPixel (i, j);
+        float value = color.r + ratio * (isLeftMouseButton ? 0.005f : -0.005f);
+
+        if (value > 1) value = value - 1;
+        if (value < 0) value = 1 - value;
+
+        texture.SetPixel (i, j, new Color (value, value, value));
     }
 
     void UpdateShaderParams () {
@@ -156,19 +288,18 @@ public class NoiseGenerator : MonoBehaviour {
             Application.Quit ();
         }
         if (Input.GetMouseButtonDown (0)) {
-            mouseValue = 0.1f;
+            isLeftMouseButton = true;
             mouseIsDown = true;
         }
         if (Input.GetMouseButtonDown (1)) {
-            mouseValue = -0.1f;
+            isLeftMouseButton = false;
             mouseIsDown = true;
         }
         mousePosition = new Vector2 (
-                Input.mousePosition.x / Screen.width,
-                Input.mousePosition.y / Screen.height
-            );
-        if (Input.GetMouseButtonUp(0) || Input.GetMouseButtonUp(1))
-        {
+            Input.mousePosition.x / Screen.width,
+            Input.mousePosition.y / Screen.height
+        );
+        if (Input.GetMouseButtonUp (0) || Input.GetMouseButtonUp (1)) {
             mouseIsDown = false;
         }
         UpdateTexture ();
