@@ -28,18 +28,18 @@ public class DiamondSquareGenerator {
             }
         }
 
-        float max = data.Get(0, 0);
-        float min = data.Get(0, 0);
-        data.ForEach((value, x, y) => {
+        float max = data.Get (0, 0);
+        float min = data.Get (0, 0);
+        data.ForEach ((value, x, y) => {
             if (value > max)
                 max = value;
             if (value < min)
                 min = value;
         });
 
-        data.ForEach((value, x, y) => {
+        data.ForEach ((value, x, y) => {
             float normilizedValue = (value - min) / (max - min);
-            data.Set(normilizedValue, x, y);
+            data.Set (normilizedValue, x, y);
         });
 
     }
@@ -84,33 +84,28 @@ public class DiamondSquareGenerator {
         data.Set (result, x, y);
 
     }
-void Diamond(int x, int y, int xBlockSize, int yBlockSize)
-{
-  float numberOfValus = 0;
-  float valueAccumulator = 0;
-  float value = 0;
-  if (data.Get(x - xBlockSize, y, out value))
-  {
-    valueAccumulator += value;
-    numberOfValus += 1;
-  }
-  if (data.Get(x + xBlockSize, y, out value))
-  {
-    valueAccumulator += value;
-    numberOfValus += 1;
-  }
-  if (data.Get(x, y - yBlockSize, out value))
-  {
-    valueAccumulator += value;
-    numberOfValus += 1;
-  }
-  if (data.Get(x, y + yBlockSize, out value))
-  {
-    valueAccumulator += value;
-    numberOfValus += 1;
-  }
-  
-  float result = Displace(valueAccumulator / numberOfValus, xBlockSize + yBlockSize, roughness);
-  data.Set(result, x, y);
-}
+    void Diamond (int x, int y, int xBlockSize, int yBlockSize) {
+        float numberOfValus = 0;
+        float valueAccumulator = 0;
+        float value = 0;
+        if (data.Get (x - xBlockSize, y, out value)) {
+            valueAccumulator += value;
+            numberOfValus += 1;
+        }
+        if (data.Get (x + xBlockSize, y, out value)) {
+            valueAccumulator += value;
+            numberOfValus += 1;
+        }
+        if (data.Get (x, y - yBlockSize, out value)) {
+            valueAccumulator += value;
+            numberOfValus += 1;
+        }
+        if (data.Get (x, y + yBlockSize, out value)) {
+            valueAccumulator += value;
+            numberOfValus += 1;
+        }
+
+        float result = Displace (valueAccumulator / numberOfValus, xBlockSize + yBlockSize, roughness);
+        data.Set (result, x, y);
+    }
 }
