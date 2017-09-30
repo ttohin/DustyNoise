@@ -1,10 +1,13 @@
 ﻿using System.Collections;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+
 public enum MouseMode {
+    Simple,
     Overload,
     QuantumBubles,
-    Simple,
     BrokenLens,
 }
 
@@ -21,6 +24,10 @@ public class NoiseGenerator : MonoBehaviour {
     private int drawingTextureHeight;
     private int drawingTextureWidth;
     private Texture2D drawingTexture;
+    private int textureWidth;
+    private int textureHeight;
+    private int verticalOffset = 0;
+    private int horizontalOffset = 0;
 
     [Range (1, 50)]
     public int Layers = 12;
@@ -32,8 +39,46 @@ public class NoiseGenerator : MonoBehaviour {
     private bool isLeftMouseButton = true;
     private bool mouseIsDown = false;
     public MouseMode mouseMode = MouseMode.QuantumBubles;
+    public GameObject speedSlider;
+    public GameObject colorsSlider;
+    public GameObject layersSlider;
+    public GameObject brushSelector;
     private void Start () {
 
+        float horizontalScreenRatio = 1;
+        float verticalScreenRatio = 1;
+        if (Screen.width > Screen.height) {
+            horizontalScreenRatio = (float) Screen.height / (float) Screen.width;
+            textureWidth = noizeSize;
+            textureHeight = (int) ((float) noizeSize * horizontalScreenRatio);
+            verticalOffset = (noizeSize - textureHeight) / 2;
+        } else {
+            verticalScreenRatio = (float) Screen.width / (float) Screen.height;
+            textureHeight = noizeSize;
+            textureWidth = (int) ((float) noizeSize * verticalScreenRatio);
+            horizontalOffset = (noizeSize - textureWidth) / 2;
+        }
+
+        drawingTextureHeight = (int) (drawingTextureSize * horizontalScreenRatio);
+        drawingTextureWidth = (int) (drawingTextureSize * verticalScreenRatio);
+        drawingTexture = new Texture2D (drawingTextureWidth, drawingTextureHeight);
+        drawingTexture.filterMode = FilterMode.Trilinear;
+        for (int i = 0; i < drawingTextureWidth; i++) {
+            for (int j = 0; j < drawingTextureHeight; j++) {
+                drawingTexture.SetPixel (i, j, new Color (0.5f, 0.5f, 0.5f));
+            }
+        }
+        drawingTexture.Apply ();
+        GetComponent<Renderer> ().material.SetTexture (name: "_DrawingTex", value : drawingTexture);
+
+        var quadHeight = Camera.main.orthographicSize * 2.0;
+        var quadWidth = quadHeight * Screen.width / Screen.height;
+        transform.localScale = new Vector3 ((float) quadWidth, (float) quadHeight, 1.0f);
+
+        GenerateRandomValues ();
+    }
+
+    void GenerateRandomValues () {
         mouseMode = (MouseMode) (Random.value * System.Enum.GetNames (typeof (MouseMode)).Length);
 
         var colors = new Color[] {
@@ -60,35 +105,15 @@ public class NoiseGenerator : MonoBehaviour {
         Layers = ColorLayers * (2 + (int) Mathf.Floor (Random.value * 5));
         GetComponent<Renderer> ().material.SetFloat (name: "_DarkSteps", value : Layers);
         GetComponent<Renderer> ().material.SetFloat (name: "_ColorSteps", value : ColorLayers);
-
-        int verticalOffset = 0;
-        int horizontalOffset = 0;
-        float horizontalScreenRatio = 1;
-        float verticalScreenRatio = 1;
-        int textureWidth;
-        int textureHeight;
-        if (Screen.width > Screen.height) {
-            horizontalScreenRatio = (float) Screen.height / (float) Screen.width;
-            textureWidth = noizeSize;
-            textureHeight = (int) ((float) noizeSize * horizontalScreenRatio);
-            verticalOffset = (noizeSize - textureHeight) / 2;
-        } else {
-            verticalScreenRatio = (float) Screen.width / (float) Screen.height;
-            textureHeight = noizeSize;
-            textureWidth = (int) ((float) noizeSize * verticalScreenRatio);
-            horizontalOffset = (noizeSize - textureWidth) / 2;
-        }
+        var texture = new Texture2D (textureWidth, textureHeight);
+        texture.filterMode = FilterMode.Point;
 
         var noise = new DiamondSquareGenerator (noizeSize, noizeSize, Roughness, RandDelta, true);
         noise.Generate ();
-        //noise.data.Fill(0.0f);
-
         noise.data.ForEach ((value, x, y) => {
             noise.data.Set (GetValueFromStep (value, 6), x, y);
         });
 
-        var texture = new Texture2D (textureWidth, textureHeight);
-        texture.filterMode = FilterMode.Point;
         for (int i = 0; i < textureWidth; i++) {
 
             for (int j = 0; j < textureHeight; j++) {
@@ -100,24 +125,15 @@ public class NoiseGenerator : MonoBehaviour {
         }
 
         texture.Apply (false, true);
-
-        drawingTextureHeight = (int) (drawingTextureSize * horizontalScreenRatio);
-        drawingTextureWidth = (int) (drawingTextureSize * verticalScreenRatio);
-        drawingTexture = new Texture2D (drawingTextureWidth, drawingTextureHeight);
-        drawingTexture.filterMode = FilterMode.Trilinear;
-        for (int i = 0; i < drawingTextureWidth; i++) {
-            for (int j = 0; j < drawingTextureHeight; j++) {
-                drawingTexture.SetPixel (i, j, new Color (0.5f, 0.5f, 0.5f));
-            }
-        }
-        drawingTexture.Apply ();
-        GetComponent<Renderer> ().material.SetTexture (name: "_DrawingTex", value : drawingTexture);
-
         GetComponent<Renderer> ().material.mainTexture = texture;
+    }
 
-        var quadHeight = Camera.main.orthographicSize * 2.0;
-        var quadWidth = quadHeight * Screen.width / Screen.height;
-        transform.localScale = new Vector3 ((float) quadWidth, (float) quadHeight, 1.0f);
+    void updateUIControls () {
+        Speed = 0.1f;
+
+        speedSlider.GetComponent<Slider> ().value = Speed;
+        layersSlider.GetComponent<Slider> ().value = Layers;
+        colorsSlider.GetComponent<Slider> ().value = ColorLayers;
     }
 
     IEnumerator UpdateTexturePeriodically () {
@@ -190,7 +206,7 @@ public class NoiseGenerator : MonoBehaviour {
         else
             lensValue = colorsAround[0].r * (1.0f - ratio) + ratio * (-0.5f + Random.value * 1.5f);
 
-        float value =  lensValue;
+        float value = lensValue;
 
         texture.SetPixel (i, j, new Color (value, value, value));
     }
@@ -282,18 +298,20 @@ public class NoiseGenerator : MonoBehaviour {
 
     private void Update () {
         if (Input.GetKeyDown (KeyCode.R)) {
-            SceneManager.LoadScene ("MainScene");
+            GenerateRandomValues ();
         }
         if (Input.GetKeyDown (KeyCode.Q)) {
             Application.Quit ();
         }
-        if (Input.GetMouseButtonDown (0)) {
-            isLeftMouseButton = true;
-            mouseIsDown = true;
-        }
-        if (Input.GetMouseButtonDown (1)) {
-            isLeftMouseButton = false;
-            mouseIsDown = true;
+        if (!EventSystem.current.IsPointerOverGameObject ()) {
+            if (Input.GetMouseButtonDown (0)) {
+                isLeftMouseButton = true;
+                mouseIsDown = true;
+            }
+            if (Input.GetMouseButtonDown (1)) {
+                isLeftMouseButton = false;
+                mouseIsDown = true;
+            }
         }
         mousePosition = new Vector2 (
             Input.mousePosition.x / Screen.width,
@@ -304,5 +322,21 @@ public class NoiseGenerator : MonoBehaviour {
         }
         UpdateTexture ();
         UpdateShaderParams ();
+    }
+
+    public void OnMouseModeChanges (int mode) {
+        mouseMode = (MouseMode) mode;
+    }
+
+    public void OnSpeedChanged (float value) {
+        Speed = value;
+    }
+    public void OnColorsChanged (float value) {
+        ColorLayers = (int) value;
+        GetComponent<Renderer> ().material.SetFloat (name: "_ColorSteps", value : ColorLayers);
+    }
+    public void OnLayersChanged (float value) {
+        Layers = (int) value;
+        GetComponent<Renderer> ().material.SetFloat (name: "_DarkSteps", value : Layers);
     }
 }
