@@ -1,4 +1,5 @@
 ﻿using System.Collections;
+using Common;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
@@ -38,12 +39,26 @@ public class NoiseGenerator : MonoBehaviour {
     private Vector2? mousePosition;
     private bool isLeftMouseButton = true;
     private bool mouseIsDown = false;
-    public MouseMode mouseMode = MouseMode.QuantumBubles;
+    public MouseMode mouseMode = MouseMode.Simple;
     public GameObject speedSlider;
     public GameObject colorsSlider;
     public GameObject layersSlider;
     public GameObject brushSelector;
+    public GameObject paletteSlider;
+    private Buffer<Color> colors;
+    private int colorIndex;
+
     private void Start () {
+
+        colors = new Buffer<Color> (3, 2);
+        colors.Set (hexToColor ("#AA6C39"), 0, 0);
+        colors.Set (hexToColor ("#226666"), 0, 1);
+        colors.Set (hexToColor ("#2E4172"), 1, 0);
+        colors.Set (hexToColor ("#AA9739"), 1, 1);
+        colors.Set (hexToColor ("#2D882D"), 2, 0);
+        colors.Set (hexToColor ("#7A9F35"), 2, 1);
+
+        paletteSlider.GetComponent<Slider>().maxValue = colors.width;
 
         float horizontalScreenRatio = 1;
         float verticalScreenRatio = 1;
@@ -78,28 +93,25 @@ public class NoiseGenerator : MonoBehaviour {
         GenerateRandomValues ();
     }
 
-    void GenerateRandomValues () {
+    public static Color hexToColor (string hex) {
+        hex = hex.Replace ("0x", ""); //in case the string is formatted 0xFFFFFF
+        hex = hex.Replace ("#", ""); //in case the string is formatted #FFFFFF
+        byte a = 255; //assume fully visible unless specified in hex
+        byte r = byte.Parse (hex.Substring (0, 2), System.Globalization.NumberStyles.HexNumber);
+        byte g = byte.Parse (hex.Substring (2, 2), System.Globalization.NumberStyles.HexNumber);
+        byte b = byte.Parse (hex.Substring (4, 2), System.Globalization.NumberStyles.HexNumber);
+        //Only use alpha if the string has enough characters
+        if (hex.Length == 8) {
+            a = byte.Parse (hex.Substring (6, 2), System.Globalization.NumberStyles.HexNumber);
+        }
+        return new Color32 (r, g, b, a);
+    }
+
+    public void GenerateRandomValues () {
         mouseMode = (MouseMode) (Random.value * System.Enum.GetNames (typeof (MouseMode)).Length);
 
-        var colors = new Color[] {
-            new Color32 (37, 105, 121, 255),
-            new Color32 (157, 117, 68, 255),
-            new Color32 (154, 192, 203, 255),
-            new Color32 (255, 255, 255, 255),
-        };
-
-        int colorIndex1 = (int) Mathf.Floor (Random.value * colors.Length);
-        int colorIndex2 = colorIndex1;
-        while (colorIndex1 == colorIndex2)
-            colorIndex2 = (int) Mathf.Floor (Random.value * colors.Length);
-
-        var color1 = colors[colorIndex1];
-        var color2 = colors[colorIndex2];
-        var darkColor = color1 * (0.2f + Random.value * 0.3f);
-
-        GetComponent<Renderer> ().material.SetColor (name: "_Color1", value : color1);
-        GetComponent<Renderer> ().material.SetColor (name: "_Color2", value : color2);
-        GetComponent<Renderer> ().material.SetColor (name: "_DarkColor", value : darkColor);
+        colorIndex = (int) Mathf.Floor (Random.value * colors.width);
+        setColorsToShader(colorIndex);
 
         ColorLayers = 1 + (int) Mathf.Floor (Random.value * 2);
         Layers = ColorLayers * (2 + (int) Mathf.Floor (Random.value * 5));
@@ -126,6 +138,18 @@ public class NoiseGenerator : MonoBehaviour {
 
         texture.Apply (false, true);
         GetComponent<Renderer> ().material.mainTexture = texture;
+
+        updateUIControls ();
+    }
+
+    private void setColorsToShader (int colorIndex) {
+        var color1 = colors.Get (colorIndex, 0);
+        var color2 = colors.Get (colorIndex, 1);;
+        var darkColor = color1 * (0.3f + Random.value * 0.1f);
+
+        GetComponent<Renderer> ().material.SetColor (name: "_Color1", value : color1);
+        GetComponent<Renderer> ().material.SetColor (name: "_Color2", value : color2);
+        GetComponent<Renderer> ().material.SetColor (name: "_DarkColor", value : darkColor);
     }
 
     void updateUIControls () {
@@ -134,6 +158,7 @@ public class NoiseGenerator : MonoBehaviour {
         speedSlider.GetComponent<Slider> ().value = Speed;
         layersSlider.GetComponent<Slider> ().value = Layers;
         colorsSlider.GetComponent<Slider> ().value = ColorLayers;
+        paletteSlider.GetComponent<Slider> ().value = colorIndex + 1;
     }
 
     IEnumerator UpdateTexturePeriodically () {
@@ -170,7 +195,6 @@ public class NoiseGenerator : MonoBehaviour {
         }
 
         drawingTexture.Apply ();
-
     }
     static void BrokenLensMouseMode (Vector2 mousePosInTexture, Texture2D texture, int i, int j, bool isLeftMouseButton) {
         Vector2 pos = new Vector2 (i, j);
@@ -338,5 +362,9 @@ public class NoiseGenerator : MonoBehaviour {
     public void OnLayersChanged (float value) {
         Layers = (int) value;
         GetComponent<Renderer> ().material.SetFloat (name: "_DarkSteps", value : Layers);
+    }
+    public void OnPaletteChanged (float value) {
+        colorIndex = (int) value - 1;
+        setColorsToShader(colorIndex);
     }
 }
