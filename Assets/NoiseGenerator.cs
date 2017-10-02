@@ -12,6 +12,27 @@ public enum MouseMode {
     BrokenLens,
 }
 
+class Palette {
+    public int ColorIndex1;
+    public int ColorIndex2;
+    public int ColorIndex3;
+    public Palette (int colorIndex1) {
+        ColorIndex1 = colorIndex1;
+        ColorIndex2 = colorIndex1 + 1;
+        ColorIndex3 = colorIndex1;
+    }
+    public Palette (int colorIndex1, int colorIndex2, int colorIndex3) {
+        ColorIndex1 = colorIndex1;
+        ColorIndex2 = colorIndex2;
+        ColorIndex3 = colorIndex3;
+    }
+    public Palette (Palette palette) {
+        ColorIndex1 = palette.ColorIndex1;
+        ColorIndex2 = palette.ColorIndex2;
+        ColorIndex3 = palette.ColorIndex3;
+    }
+}
+
 public class NoiseGenerator : MonoBehaviour {
 
     [Range (-1, 1)]
@@ -45,20 +66,67 @@ public class NoiseGenerator : MonoBehaviour {
     public GameObject layersSlider;
     public GameObject brushSelector;
     public GameObject paletteSlider;
-    private Buffer<Color> colors;
-    private int colorIndex;
+    public GameObject Color1Slider;
+    public GameObject Color2Slider;
+    public GameObject Color3Slider;
+    private Palette currentPalette;
+    private int paletteIndex;
+    private Palette[] palettes;
+    private Color[] colors;
+    public ToggleButton mainMenuButton;
+
+    static private Palette CreatePaletteWithDiffrentColors (Color[] colors) {
+        var palette = new Palette (0, 0, 0);
+        palette.ColorIndex1 = Random.Range (0, colors.Length - 1);
+
+        palette.ColorIndex2 = palette.ColorIndex1;
+        while (palette.ColorIndex1 == palette.ColorIndex2)
+            palette.ColorIndex2 = Random.Range (0, colors.Length - 1);
+
+        palette.ColorIndex3 = palette.ColorIndex1;
+        while (palette.ColorIndex3 == palette.ColorIndex1 || palette.ColorIndex3 == palette.ColorIndex1)
+            palette.ColorIndex3 = Random.Range (0, colors.Length - 1);
+
+        return palette;
+    }
+    static private Palette CreateRandomPalette (Color[] colors) {
+        var palette = new Palette (0, 0, 0);
+        palette.ColorIndex1 = Random.Range (0, colors.Length - 1);
+        if (Random.value < 0.5f) {
+            palette.ColorIndex2 = palette.ColorIndex1;
+            while (palette.ColorIndex1 == palette.ColorIndex2)
+                palette.ColorIndex2 = Random.Range (0, colors.Length - 1);
+            palette.ColorIndex3 = palette.ColorIndex1;
+        } else if (Random.value < 0.8f) {
+            return CreatePaletteWithDiffrentColors (colors);
+        } else {
+            palette.ColorIndex2 = palette.ColorIndex1;
+            palette.ColorIndex3 = palette.ColorIndex1;
+        }
+
+        return palette;
+    }
 
     private void Start () {
 
-        colors = new Buffer<Color> (3, 2);
-        colors.Set (hexToColor ("#AA6C39"), 0, 0);
-        colors.Set (hexToColor ("#226666"), 0, 1);
-        colors.Set (hexToColor ("#2E4172"), 1, 0);
-        colors.Set (hexToColor ("#AA9739"), 1, 1);
-        colors.Set (hexToColor ("#2D882D"), 2, 0);
-        colors.Set (hexToColor ("#7A9F35"), 2, 1);
-
-        paletteSlider.GetComponent<Slider>().maxValue = colors.width;
+        colors = new Color[] {
+            hexToColor ("#AA6C39"),
+            hexToColor ("#226666"),
+            hexToColor ("#2D882D"),
+            hexToColor ("#7A9F35"),
+            hexToColor ("#5D2371"),
+            hexToColor ("#8E2959"),
+            hexToColor ("#A1A830"),
+            hexToColor ("#1F6B61"),
+            hexToColor ("#322E77"),
+            hexToColor ("#AA6331"),
+            hexToColor ("#244D6D"),
+            hexToColor ("#864866"),
+            hexToColor ("#7B9550"),
+            hexToColor ("#551C39"),
+            hexToColor ("#684A23"),
+            hexToColor ("#193143"),
+        };
 
         float horizontalScreenRatio = 1;
         float verticalScreenRatio = 1;
@@ -78,12 +146,7 @@ public class NoiseGenerator : MonoBehaviour {
         drawingTextureWidth = (int) (drawingTextureSize * verticalScreenRatio);
         drawingTexture = new Texture2D (drawingTextureWidth, drawingTextureHeight);
         drawingTexture.filterMode = FilterMode.Trilinear;
-        for (int i = 0; i < drawingTextureWidth; i++) {
-            for (int j = 0; j < drawingTextureHeight; j++) {
-                drawingTexture.SetPixel (i, j, new Color (0.5f, 0.5f, 0.5f));
-            }
-        }
-        drawingTexture.Apply ();
+        resetDrawingTexture ();
         GetComponent<Renderer> ().material.SetTexture (name: "_DrawingTex", value : drawingTexture);
 
         var quadHeight = Camera.main.orthographicSize * 2.0;
@@ -91,6 +154,20 @@ public class NoiseGenerator : MonoBehaviour {
         transform.localScale = new Vector3 ((float) quadWidth, (float) quadHeight, 1.0f);
 
         GenerateRandomValues ();
+
+        paletteSlider.GetComponent<Slider> ().maxValue = palettes.Length;
+        Color1Slider.GetComponent<Slider> ().maxValue = colors.Length;
+        Color2Slider.GetComponent<Slider> ().maxValue = colors.Length;
+        Color3Slider.GetComponent<Slider> ().maxValue = colors.Length;
+    }
+
+    private void resetDrawingTexture () {
+        for (int i = 0; i < drawingTextureWidth; i++) {
+            for (int j = 0; j < drawingTextureHeight; j++) {
+                drawingTexture.SetPixel (i, j, new Color (0.5f, 0.5f, 0.5f));
+            }
+        }
+        drawingTexture.Apply ();
     }
 
     public static Color hexToColor (string hex) {
@@ -107,11 +184,31 @@ public class NoiseGenerator : MonoBehaviour {
         return new Color32 (r, g, b, a);
     }
 
+    public void RandomizeColors () {
+        currentPalette = CreatePaletteWithDiffrentColors (colors);
+        updateColorSliders ();
+    }
+
     public void GenerateRandomValues () {
+
+        palettes = new Palette[] {
+            CreateRandomPalette (colors),
+            CreateRandomPalette (colors),
+            CreateRandomPalette (colors),
+            CreateRandomPalette (colors),
+            CreateRandomPalette (colors),
+            CreateRandomPalette (colors),
+            CreateRandomPalette (colors),
+            CreateRandomPalette (colors),
+            CreateRandomPalette (colors),
+            CreateRandomPalette (colors),
+        };
+
         mouseMode = (MouseMode) (Random.value * System.Enum.GetNames (typeof (MouseMode)).Length);
 
-        colorIndex = (int) Mathf.Floor (Random.value * colors.width);
-        setColorsToShader(colorIndex);
+        paletteIndex = (int) Mathf.Floor (Random.value * (palettes.Length - 1));
+        currentPalette = new Palette (palettes[paletteIndex]);
+        setColorsToShader (currentPalette);
 
         ColorLayers = 1 + (int) Mathf.Floor (Random.value * 2);
         Layers = ColorLayers * (2 + (int) Mathf.Floor (Random.value * 5));
@@ -127,9 +224,7 @@ public class NoiseGenerator : MonoBehaviour {
         });
 
         for (int i = 0; i < textureWidth; i++) {
-
             for (int j = 0; j < textureHeight; j++) {
-
                 float value = noise.data.Get (i + horizontalOffset, j + verticalOffset);
                 Color c = new Color (value, value, value);
                 texture.SetPixel (i, j, c);
@@ -140,25 +235,39 @@ public class NoiseGenerator : MonoBehaviour {
         GetComponent<Renderer> ().material.mainTexture = texture;
 
         updateUIControls ();
+        resetDrawingTexture ();
     }
 
-    private void setColorsToShader (int colorIndex) {
-        var color1 = colors.Get (colorIndex, 0);
-        var color2 = colors.Get (colorIndex, 1);;
-        var darkColor = color1 * (0.3f + Random.value * 0.1f);
+    private void setColorsToShader (Palette palette) {
+        var color1 = colors[palette.ColorIndex1];
+        var color2 = colors[palette.ColorIndex2];
+        var color3 = colors[palette.ColorIndex3];
+        var darkColor = 0.3f + Random.value * 0.1f;
+        if (Layers == 0)
+            darkColor = 1.0f;
 
         GetComponent<Renderer> ().material.SetColor (name: "_Color1", value : color1);
         GetComponent<Renderer> ().material.SetColor (name: "_Color2", value : color2);
-        GetComponent<Renderer> ().material.SetColor (name: "_DarkColor", value : darkColor);
+        GetComponent<Renderer> ().material.SetColor (name: "_Color3", value : color3);
+        GetComponent<Renderer> ().material.SetFloat (name: "_DarkColor", value : darkColor);
     }
 
     void updateUIControls () {
         Speed = 0.1f;
 
+        brushSelector.GetComponent<Dropdown> ().value = (int) mouseMode;
         speedSlider.GetComponent<Slider> ().value = Speed;
         layersSlider.GetComponent<Slider> ().value = Layers;
         colorsSlider.GetComponent<Slider> ().value = ColorLayers;
-        paletteSlider.GetComponent<Slider> ().value = colorIndex + 1;
+        paletteSlider.GetComponent<Slider> ().value = paletteIndex + 1;
+
+        updateColorSliders ();
+    }
+
+    void updateColorSliders () {
+        Color1Slider.GetComponent<Slider> ().value = currentPalette.ColorIndex1 + 1;
+        Color2Slider.GetComponent<Slider> ().value = currentPalette.ColorIndex2 + 1;
+        Color3Slider.GetComponent<Slider> ().value = currentPalette.ColorIndex3 + 1;
     }
 
     IEnumerator UpdateTexturePeriodically () {
@@ -327,6 +436,9 @@ public class NoiseGenerator : MonoBehaviour {
         if (Input.GetKeyDown (KeyCode.Q)) {
             Application.Quit ();
         }
+        if (Input.GetKeyDown (KeyCode.Escape)) {
+            mainMenuButton.Toggle();
+        }
         if (!EventSystem.current.IsPointerOverGameObject ()) {
             if (Input.GetMouseButtonDown (0)) {
                 isLeftMouseButton = true;
@@ -348,6 +460,10 @@ public class NoiseGenerator : MonoBehaviour {
         UpdateShaderParams ();
     }
 
+    public void Quit () {
+        Application.Quit ();
+    }
+
     public void OnMouseModeChanges (int mode) {
         mouseMode = (MouseMode) mode;
     }
@@ -361,10 +477,26 @@ public class NoiseGenerator : MonoBehaviour {
     }
     public void OnLayersChanged (float value) {
         Layers = (int) value;
-        GetComponent<Renderer> ().material.SetFloat (name: "_DarkSteps", value : Layers);
+        int resultLayers = (Layers == 0) ? 1 : Layers;
+        GetComponent<Renderer> ().material.SetFloat (name: "_DarkSteps", value : resultLayers);
+        setColorsToShader (currentPalette);
     }
     public void OnPaletteChanged (float value) {
-        colorIndex = (int) value - 1;
-        setColorsToShader(colorIndex);
+        paletteIndex = (int) value - 1;
+        currentPalette = new Palette (palettes[paletteIndex]);
+        setColorsToShader (currentPalette);
+        updateColorSliders ();
+    }
+    public void OnColor1Changed (float value) {
+        currentPalette.ColorIndex1 = (int) value - 1;
+        setColorsToShader (currentPalette);
+    }
+    public void OnColor2Changed (float value) {
+        currentPalette.ColorIndex2 = (int) value - 1;
+        setColorsToShader (currentPalette);
+    }
+    public void OnColor3Changed (float value) {
+        currentPalette.ColorIndex3 = (int) value - 1;
+        setColorsToShader (currentPalette);
     }
 }

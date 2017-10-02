@@ -7,7 +7,8 @@
 		_Offset ("Offset", Range(0,1)) = 0.0
 		_Color1 ("Color1", Color) = (1,1,1,1)
 		_Color2 ("Color2", Color) = (0.3,0.3,0.35,1)
-		_DarkColor ("DarkColor", Color) = (0.9,0.1,0.05,1)
+		_Color3 ("Color3", Color) = (0.3,0.3,0.35,1)
+		_DarkColor ("DarkColor", Range(0,1)) = 0.3
         _DarkSteps("DarkSteps", Range(0,100)) = 12
         _ColorSteps("ColorSteps", Range(0,100)) = 3
 	}
@@ -45,7 +46,8 @@
 		    float _Offset;
 		    fixed4 _Color1;
 		    fixed4 _Color2;
-		    fixed4 _DarkColor;
+		    fixed4 _Color3;
+		    float _DarkColor;
 		    float _DarkSteps;
 		    float _ColorSteps;
 			
@@ -79,8 +81,10 @@
                 float darkLevel = GetValueFromStep(value, _DarkSteps);
                 float colorLevel = GetValueFromStep(value, _ColorSteps);
 
-                float4 resultColor = MixColors(_Color1, _Color2, colorLevel);
-				return MixColors(resultColor, _DarkColor, darkLevel);
+                fixed4 resultColor = MixColors(_Color1, _Color2, colorLevel * 2.0) * step(colorLevel, 0.5);
+                resultColor += MixColors(_Color2, _Color3, (colorLevel - 0.5) * 2.0) * step(0.5, colorLevel);
+				//resultColor = MixColors(_Color1, _Color2, colorLevel);
+				return MixColors(resultColor, resultColor * _DarkColor, darkLevel);
 			}
 			ENDCG
 		}

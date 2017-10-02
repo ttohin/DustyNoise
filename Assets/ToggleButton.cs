@@ -10,21 +10,18 @@ public class ToggleButton : MonoBehaviour {
     public string hiddenText;
 
     void Start () {
-        targetIsActive = PlayerPrefs.GetInt(getPrefKey(), 0) == 1;
-        updateMenuState();
-        GetComponent<Button>().onClick.AddListener(onClick);
+        targetIsActive = PlayerPrefs.GetInt (getPrefKey (), 0) == 1;
+        updateMenuState ();
+        GetComponent<Button> ().onClick.AddListener (Toggle);
     }
 
-    private string getPrefKey()
-    {
+    private string getPrefKey () {
         return name + "PrefKey";
     }
 
-    // Update is called once per frame
-
-    private void onClick () {
+    public void Toggle () {
         targetIsActive = !targetIsActive;
-        PlayerPrefs.SetInt(getPrefKey(), targetIsActive ? 1 : 0);
+        PlayerPrefs.SetInt (getPrefKey (), targetIsActive ? 1 : 0);
         updateMenuState ();
     }
 
