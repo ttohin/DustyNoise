@@ -10,7 +10,7 @@ public class ToggleButton : MonoBehaviour {
     public string hiddenText;
 
     void Start () {
-        targetIsActive = PlayerPrefs.GetInt (getPrefKey (), 0) == 1;
+        targetIsActive = PlayerPrefs.GetInt (getPrefKey (), targetIsActive ? 1 : 0) == 1;
         updateMenuState ();
         GetComponent<Button> ().onClick.AddListener (Toggle);
     }

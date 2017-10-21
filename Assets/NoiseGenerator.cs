@@ -77,25 +77,25 @@ public class NoiseGenerator : MonoBehaviour {
 
     static private Palette CreatePaletteWithDiffrentColors (Color[] colors) {
         var palette = new Palette (0, 0, 0);
-        palette.ColorIndex1 = Random.Range (0, colors.Length - 1);
+        palette.ColorIndex1 = Random.Range (0, colors.Length);
 
         palette.ColorIndex2 = palette.ColorIndex1;
         while (palette.ColorIndex1 == palette.ColorIndex2)
-            palette.ColorIndex2 = Random.Range (0, colors.Length - 1);
+            palette.ColorIndex2 = Random.Range (0, colors.Length);
 
         palette.ColorIndex3 = palette.ColorIndex1;
         while (palette.ColorIndex3 == palette.ColorIndex1 || palette.ColorIndex3 == palette.ColorIndex1)
-            palette.ColorIndex3 = Random.Range (0, colors.Length - 1);
+            palette.ColorIndex3 = Random.Range (0, colors.Length);
 
         return palette;
     }
     static private Palette CreateRandomPalette (Color[] colors) {
         var palette = new Palette (0, 0, 0);
-        palette.ColorIndex1 = Random.Range (0, colors.Length - 1);
+        palette.ColorIndex1 = Random.Range (0, colors.Length);
         if (Random.value < 0.5f) {
             palette.ColorIndex2 = palette.ColorIndex1;
             while (palette.ColorIndex1 == palette.ColorIndex2)
-                palette.ColorIndex2 = Random.Range (0, colors.Length - 1);
+                palette.ColorIndex2 = Random.Range (0, colors.Length);
             palette.ColorIndex3 = palette.ColorIndex1;
         } else if (Random.value < 0.8f) {
             return CreatePaletteWithDiffrentColors (colors);
@@ -110,23 +110,49 @@ public class NoiseGenerator : MonoBehaviour {
     private void Start () {
 
         colors = new Color[] {
-            hexToColor ("#AA6C39"),
-            hexToColor ("#226666"),
-            hexToColor ("#2D882D"),
-            hexToColor ("#7A9F35"),
-            hexToColor ("#5D2371"),
-            hexToColor ("#8E2959"),
-            hexToColor ("#A1A830"),
-            hexToColor ("#1F6B61"),
-            hexToColor ("#322E77"),
-            hexToColor ("#AA6331"),
-            hexToColor ("#244D6D"),
-            hexToColor ("#864866"),
-            hexToColor ("#7B9550"),
-            hexToColor ("#551C39"),
-            hexToColor ("#684A23"),
-            hexToColor ("#193143"),
+            hexToColor ("#AB584F"),
+            hexToColor ("#88A14B"),
+            hexToColor ("#843D6B"),
+            hexToColor ("#3C814B"),
+            hexToColor ("#AB824F"),
+            hexToColor ("#36596D"),
+            hexToColor ("#454077"), // 6
+            hexToColor ("#ABAA4F"),
+            hexToColor ("#5C3972"), // 8 
+            hexToColor ("#7B9D49"),
+            hexToColor ("#904366"),
+            hexToColor ("#377659"),
+            hexToColor ("#AB684F"),
+            hexToColor ("#627082"),
+            hexToColor ("#648978"),
+            hexToColor ("#1B2634"),
+            hexToColor ("#4F3025"), // 16
+            hexToColor ("#CCCCCC"), // 17
         };
+        
+        Color1Slider.GetComponent<Slider> ().maxValue = colors.Length;
+        Color2Slider.GetComponent<Slider> ().maxValue = colors.Length;
+        Color3Slider.GetComponent<Slider> ().maxValue = colors.Length;
+
+        palettes = new Palette[] {
+            new Palette (0, 2, 15),
+            new Palette (1, 3, 7),
+            new Palette (17, 5, 17),
+            new Palette (4, 5, 0),
+            new Palette (6, 10, 6),
+            new Palette (6, 7, 3),
+            new Palette (10, 9, 10),
+            new Palette (11, 9, 11),
+            new Palette (0, 2, 16),
+            new Palette (1, 3, 15),
+            new Palette (4, 5, 14),
+            new Palette (4, 5, 13),
+        };
+
+        paletteSlider.GetComponent<Slider> ().maxValue = palettes.Length;
+
+        if (Application.platform == RuntimePlatform.OSXPlayer && Screen.width > 1440)
+            GameObject.Find ("Canvas").GetComponent<CanvasScaler> ().scaleFactor = Screen.width / 1440.0f;
 
         float horizontalScreenRatio = 1;
         float verticalScreenRatio = 1;
@@ -155,10 +181,6 @@ public class NoiseGenerator : MonoBehaviour {
 
         GenerateRandomValues ();
 
-        paletteSlider.GetComponent<Slider> ().maxValue = palettes.Length;
-        Color1Slider.GetComponent<Slider> ().maxValue = colors.Length;
-        Color2Slider.GetComponent<Slider> ().maxValue = colors.Length;
-        Color3Slider.GetComponent<Slider> ().maxValue = colors.Length;
     }
 
     private void resetDrawingTexture () {
@@ -190,19 +212,6 @@ public class NoiseGenerator : MonoBehaviour {
     }
 
     public void GenerateRandomValues () {
-
-        palettes = new Palette[] {
-            CreateRandomPalette (colors),
-            CreateRandomPalette (colors),
-            CreateRandomPalette (colors),
-            CreateRandomPalette (colors),
-            CreateRandomPalette (colors),
-            CreateRandomPalette (colors),
-            CreateRandomPalette (colors),
-            CreateRandomPalette (colors),
-            CreateRandomPalette (colors),
-            CreateRandomPalette (colors),
-        };
 
         mouseMode = (MouseMode) (Random.value * System.Enum.GetNames (typeof (MouseMode)).Length);
 
@@ -265,6 +274,7 @@ public class NoiseGenerator : MonoBehaviour {
     }
 
     void updateColorSliders () {
+        Debug.Log("updateColorSliders");
         Color1Slider.GetComponent<Slider> ().value = currentPalette.ColorIndex1 + 1;
         Color2Slider.GetComponent<Slider> ().value = currentPalette.ColorIndex2 + 1;
         Color3Slider.GetComponent<Slider> ().value = currentPalette.ColorIndex3 + 1;
@@ -437,7 +447,7 @@ public class NoiseGenerator : MonoBehaviour {
             Application.Quit ();
         }
         if (Input.GetKeyDown (KeyCode.Escape)) {
-            mainMenuButton.Toggle();
+            mainMenuButton.Toggle ();
         }
         if (!EventSystem.current.IsPointerOverGameObject ()) {
             if (Input.GetMouseButtonDown (0)) {
@@ -488,14 +498,17 @@ public class NoiseGenerator : MonoBehaviour {
         updateColorSliders ();
     }
     public void OnColor1Changed (float value) {
+        Debug.Log("OnColor1Changed " + value);
         currentPalette.ColorIndex1 = (int) value - 1;
         setColorsToShader (currentPalette);
     }
     public void OnColor2Changed (float value) {
+        Debug.Log("OnColor2Changed " + value);
         currentPalette.ColorIndex2 = (int) value - 1;
         setColorsToShader (currentPalette);
     }
     public void OnColor3Changed (float value) {
+        Debug.Log("OnColor3Changed " + value);
         currentPalette.ColorIndex3 = (int) value - 1;
         setColorsToShader (currentPalette);
     }
