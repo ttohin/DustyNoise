@@ -35,6 +35,8 @@ class Palette {
 
 public class NoiseGenerator : MonoBehaviour {
 
+    private Material currentMaterial;
+    public RawImage cameraImage;
     [Range (-1, 1)]
     public float Speed = 0.005f;
     [Range (-2, 2)]
@@ -74,6 +76,9 @@ public class NoiseGenerator : MonoBehaviour {
     private Palette[] palettes;
     private Color[] colors;
     public ToggleButton mainMenuButton;
+    private System.DateTime? restartDate;
+    private bool timerIsEnagled = false;
+    private bool userCamera = false;
 
     static private Palette CreatePaletteWithDiffrentColors (Color[] colors) {
         var palette = new Palette (0, 0, 0);
@@ -107,6 +112,29 @@ public class NoiseGenerator : MonoBehaviour {
         return palette;
     }
 
+    private IEnumerator RestartTimer () {
+        while (true) {
+            if (restartDate == null || restartDate.Value > System.DateTime.Now) {
+                yield return new WaitForSeconds (5);
+            } else {
+                ScheduleRestart ();
+                GenerateRandomValues ();
+            }
+
+        }
+    }
+
+    public void ScheduleRestart () {
+        restartDate = System.DateTime.Now + System.TimeSpan.FromMinutes (5);
+    }
+
+    public void EnableRestartTimer (bool enable) {
+        if (enable)
+            ScheduleRestart ();
+        else
+            restartDate = null;
+    }
+
     private void Start () {
 
         colors = new Color[] {
@@ -129,7 +157,7 @@ public class NoiseGenerator : MonoBehaviour {
             hexToColor ("#4F3025"), // 16
             hexToColor ("#CCCCCC"), // 17
         };
-        
+
         Color1Slider.GetComponent<Slider> ().maxValue = colors.Length;
         Color2Slider.GetComponent<Slider> ().maxValue = colors.Length;
         Color3Slider.GetComponent<Slider> ().maxValue = colors.Length;
@@ -173,14 +201,13 @@ public class NoiseGenerator : MonoBehaviour {
         drawingTexture = new Texture2D (drawingTextureWidth, drawingTextureHeight);
         drawingTexture.filterMode = FilterMode.Trilinear;
         resetDrawingTexture ();
-        GetComponent<Renderer> ().material.SetTexture (name: "_DrawingTex", value : drawingTexture);
 
         var quadHeight = Camera.main.orthographicSize * 2.0;
         var quadWidth = quadHeight * Screen.width / Screen.height;
         transform.localScale = new Vector3 ((float) quadWidth, (float) quadHeight, 1.0f);
 
         GenerateRandomValues ();
-
+        StartCoroutine (RestartTimer ());
     }
 
     private void resetDrawingTexture () {
@@ -213,35 +240,48 @@ public class NoiseGenerator : MonoBehaviour {
 
     public void GenerateRandomValues () {
 
+        userCamera = true;
+        if (userCamera) {
+            currentMaterial = cameraImage.material;
+        } else {
+            currentMaterial = GetComponent<Renderer> ().material;
+        }
+
         mouseMode = (MouseMode) (Random.value * System.Enum.GetNames (typeof (MouseMode)).Length);
 
         paletteIndex = (int) Mathf.Floor (Random.value * (palettes.Length - 1));
         currentPalette = new Palette (palettes[paletteIndex]);
+        RandomizeColors ();
         setColorsToShader (currentPalette);
 
         ColorLayers = 1 + (int) Mathf.Floor (Random.value * 2);
         Layers = ColorLayers * (2 + (int) Mathf.Floor (Random.value * 5));
-        GetComponent<Renderer> ().material.SetFloat (name: "_DarkSteps", value : Layers);
-        GetComponent<Renderer> ().material.SetFloat (name: "_ColorSteps", value : ColorLayers);
-        var texture = new Texture2D (textureWidth, textureHeight);
-        texture.filterMode = FilterMode.Point;
+        currentMaterial.SetFloat (name: "_DarkSteps", value : Layers);
+        currentMaterial.SetFloat (name: "_ColorSteps", value : ColorLayers);
 
-        var noise = new DiamondSquareGenerator (noizeSize, noizeSize, Roughness, RandDelta, true);
-        noise.Generate ();
-        noise.data.ForEach ((value, x, y) => {
-            noise.data.Set (GetValueFromStep (value, 6), x, y);
-        });
+        if (!userCamera) {
+            var texture = new Texture2D (textureWidth, textureHeight);
+            texture.filterMode = FilterMode.Point;
 
-        for (int i = 0; i < textureWidth; i++) {
-            for (int j = 0; j < textureHeight; j++) {
-                float value = noise.data.Get (i + horizontalOffset, j + verticalOffset);
-                Color c = new Color (value, value, value);
-                texture.SetPixel (i, j, c);
+            var noise = new DiamondSquareGenerator (noizeSize, noizeSize, Roughness, RandDelta, true);
+            noise.Generate ();
+            noise.data.ForEach ((value, x, y) => {
+                noise.data.Set (GetValueFromStep (value, 6), x, y);
+            });
+
+            for (int i = 0; i < textureWidth; i++) {
+                for (int j = 0; j < textureHeight; j++) {
+                    float value = noise.data.Get (i + horizontalOffset, j + verticalOffset);
+                    Color c = new Color (value, value, value);
+                    texture.SetPixel (i, j, c);
+                }
             }
+
+            texture.Apply (false, true);
+            currentMaterial.mainTexture = texture;
         }
 
-        texture.Apply (false, true);
-        GetComponent<Renderer> ().material.mainTexture = texture;
+        currentMaterial.SetTexture (name: "_DrawingTex", value : drawingTexture);
 
         updateUIControls ();
         resetDrawingTexture ();
@@ -255,10 +295,10 @@ public class NoiseGenerator : MonoBehaviour {
         if (Layers == 0)
             darkColor = 1.0f;
 
-        GetComponent<Renderer> ().material.SetColor (name: "_Color1", value : color1);
-        GetComponent<Renderer> ().material.SetColor (name: "_Color2", value : color2);
-        GetComponent<Renderer> ().material.SetColor (name: "_Color3", value : color3);
-        GetComponent<Renderer> ().material.SetFloat (name: "_DarkColor", value : darkColor);
+        currentMaterial.SetColor (name: "_Color1", value : color1);
+        currentMaterial.SetColor (name: "_Color2", value : color2);
+        currentMaterial.SetColor (name: "_Color3", value : color3);
+        currentMaterial.SetFloat (name: "_DarkColor", value : darkColor);
     }
 
     void updateUIControls () {
@@ -274,7 +314,7 @@ public class NoiseGenerator : MonoBehaviour {
     }
 
     void updateColorSliders () {
-        Debug.Log("updateColorSliders");
+        Debug.Log ("updateColorSliders");
         Color1Slider.GetComponent<Slider> ().value = currentPalette.ColorIndex1 + 1;
         Color2Slider.GetComponent<Slider> ().value = currentPalette.ColorIndex2 + 1;
         Color3Slider.GetComponent<Slider> ().value = currentPalette.ColorIndex3 + 1;
@@ -436,7 +476,7 @@ public class NoiseGenerator : MonoBehaviour {
             offset = 0;
         if (offset < 0)
             offset = 1;
-        GetComponent<Renderer> ().material.SetFloat (name: "_Offset", value : offset);
+        currentMaterial.SetFloat (name: "_Offset", value : offset);
     }
 
     private void Update () {
@@ -483,12 +523,12 @@ public class NoiseGenerator : MonoBehaviour {
     }
     public void OnColorsChanged (float value) {
         ColorLayers = (int) value;
-        GetComponent<Renderer> ().material.SetFloat (name: "_ColorSteps", value : ColorLayers);
+        currentMaterial.SetFloat (name: "_ColorSteps", value : ColorLayers);
     }
     public void OnLayersChanged (float value) {
         Layers = (int) value;
         int resultLayers = (Layers == 0) ? 1 : Layers;
-        GetComponent<Renderer> ().material.SetFloat (name: "_DarkSteps", value : resultLayers);
+        currentMaterial.SetFloat (name: "_DarkSteps", value : resultLayers);
         setColorsToShader (currentPalette);
     }
     public void OnPaletteChanged (float value) {
@@ -498,17 +538,17 @@ public class NoiseGenerator : MonoBehaviour {
         updateColorSliders ();
     }
     public void OnColor1Changed (float value) {
-        Debug.Log("OnColor1Changed " + value);
+        Debug.Log ("OnColor1Changed " + value);
         currentPalette.ColorIndex1 = (int) value - 1;
         setColorsToShader (currentPalette);
     }
     public void OnColor2Changed (float value) {
-        Debug.Log("OnColor2Changed " + value);
+        Debug.Log ("OnColor2Changed " + value);
         currentPalette.ColorIndex2 = (int) value - 1;
         setColorsToShader (currentPalette);
     }
     public void OnColor3Changed (float value) {
-        Debug.Log("OnColor3Changed " + value);
+        Debug.Log ("OnColor3Changed " + value);
         currentPalette.ColorIndex3 = (int) value - 1;
         setColorsToShader (currentPalette);
     }
