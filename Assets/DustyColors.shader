@@ -3,8 +3,10 @@
 	Properties
 	{
 		_MainTex ("Texture", 2D) = "white" {}
+		_AdditionalTex ("AdditionalTexture", 2D) = "white" {}
 		_DrawingTex ("DrawingTexture", 2D) = "white" {}
 		_Offset ("Offset", Range(0,1)) = 0.0
+		_MainAdditionalTexRatio("MainAdditionalTexRatio", Range(0,1)) = 1.0
 		_Color1 ("Color1", Color) = (1,1,1,1)
 		_Color2 ("Color2", Color) = (0.3,0.3,0.35,1)
 		_Color3 ("Color3", Color) = (0.3,0.3,0.35,1)
@@ -41,9 +43,11 @@
 			};
 
 			sampler2D _MainTex;
+			sampler2D _AdditionalTex;
 			sampler2D _DrawingTex;
 			float4 _MainTex_ST;
 		    float _Offset;
+		    float _MainAdditionalTexRatio;
 		    fixed4 _Color1;
 		    fixed4 _Color2;
 		    fixed4 _Color3;
@@ -73,8 +77,9 @@
 			float4 frag (v2f i) : SV_Target
 			{
 				float4 col = tex2D(_MainTex, i.uv);
+				float4 additionalTextureColor = tex2D(_AdditionalTex, i.uv);
 
-                float value = col.r + _Offset;
+                float value = MixColors(col, additionalTextureColor, _MainAdditionalTexRatio) + _Offset;
                 fixed4 drawingTextureColor = tex2D(_DrawingTex, i.uv);
                 value = value + drawingTextureColor.r;
 

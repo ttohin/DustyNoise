@@ -1,9 +1,12 @@
 ﻿using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 using Common;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+
 
 public enum MouseMode {
     Simple,
@@ -78,7 +81,11 @@ public class NoiseGenerator : MonoBehaviour {
     public ToggleButton mainMenuButton;
     private System.DateTime? restartDate;
     private bool timerIsEnagled = false;
-    private bool userCamera = false;
+    private bool useCamera = false;
+    private WebCamTexture cameraTexture;
+
+    public Dropdown CameraSelector;
+    private int cameraIndex;
 
     static private Palette CreatePaletteWithDiffrentColors (Color[] colors) {
         var palette = new Palette (0, 0, 0);
@@ -135,7 +142,55 @@ public class NoiseGenerator : MonoBehaviour {
             restartDate = null;
     }
 
+    private void InitializeCamera () {
+
+        if (cameraIndex == 0)
+        {
+            Debug.Log("disabling camera");
+            if (cameraTexture != null)
+            {
+                cameraTexture.Stop();
+                cameraTexture = null;
+            }
+
+            cameraIndex = 0;
+            currentMaterial.SetTexture ("_AdditionalTex", null);
+            return;
+        }
+
+        if (WebCamTexture.devices.Length <= (cameraIndex - 1))
+        {
+            cameraIndex = 0;
+            UpdateCameras();
+            return;
+        }
+
+        if (WebCamTexture.devices.Length == 0) {
+            Debug.Log("No devices cameras found");
+            return;
+        }
+
+        Debug.Log("starting camera");
+        var cameraDevice = WebCamTexture.devices[cameraIndex - 1];
+        cameraTexture = new WebCamTexture (cameraDevice.name);
+        cameraTexture.Play ();
+        currentMaterial.SetTexture ("_AdditionalTex", cameraTexture);
+    }
+
+    private void UpdateCameras()
+    {
+        string[] cameraNames = WebCamTexture.devices.Select((camDevice) => camDevice.name).ToArray();
+        var options = cameraNames.Select((name) => new Dropdown.OptionData(name)).ToList();
+        options.Insert(0, new Dropdown.OptionData("none"));
+        CameraSelector.options = options;
+        CameraSelector.value = 0;
+    }
+
     private void Start () {
+
+        currentMaterial = cameraImage.material;
+
+        UpdateCameras();
 
         colors = new Color[] {
             hexToColor ("#AB584F"),
@@ -207,6 +262,7 @@ public class NoiseGenerator : MonoBehaviour {
         transform.localScale = new Vector3 ((float) quadWidth, (float) quadHeight, 1.0f);
 
         GenerateRandomValues ();
+        currentMaterial.SetTexture (name: "_DrawingTex", value: drawingTexture);
         StartCoroutine (RestartTimer ());
     }
 
@@ -240,13 +296,6 @@ public class NoiseGenerator : MonoBehaviour {
 
     public void GenerateRandomValues () {
 
-        userCamera = true;
-        if (userCamera) {
-            currentMaterial = cameraImage.material;
-        } else {
-            currentMaterial = GetComponent<Renderer> ().material;
-        }
-
         mouseMode = (MouseMode) (Random.value * System.Enum.GetNames (typeof (MouseMode)).Length);
 
         paletteIndex = (int) Mathf.Floor (Random.value * (palettes.Length - 1));
@@ -256,32 +305,28 @@ public class NoiseGenerator : MonoBehaviour {
 
         ColorLayers = 1 + (int) Mathf.Floor (Random.value * 2);
         Layers = ColorLayers * (2 + (int) Mathf.Floor (Random.value * 5));
-        currentMaterial.SetFloat (name: "_DarkSteps", value : Layers);
-        currentMaterial.SetFloat (name: "_ColorSteps", value : ColorLayers);
+        currentMaterial.SetFloat (name: "_DarkSteps", value: Layers);
+        currentMaterial.SetFloat (name: "_ColorSteps", value: ColorLayers);
 
-        if (!userCamera) {
-            var texture = new Texture2D (textureWidth, textureHeight);
-            texture.filterMode = FilterMode.Point;
+        var texture = new Texture2D (textureWidth, textureHeight);
+        texture.filterMode = FilterMode.Point;
 
-            var noise = new DiamondSquareGenerator (noizeSize, noizeSize, Roughness, RandDelta, true);
-            noise.Generate ();
-            noise.data.ForEach ((value, x, y) => {
-                noise.data.Set (GetValueFromStep (value, 6), x, y);
-            });
+        var noise = new DiamondSquareGenerator (noizeSize, noizeSize, Roughness, RandDelta, true);
+        noise.Generate ();
+        noise.data.ForEach ((value, x, y) => {
+            noise.data.Set (GetValueFromStep (value, 6), x, y);
+        });
 
-            for (int i = 0; i < textureWidth; i++) {
-                for (int j = 0; j < textureHeight; j++) {
-                    float value = noise.data.Get (i + horizontalOffset, j + verticalOffset);
-                    Color c = new Color (value, value, value);
-                    texture.SetPixel (i, j, c);
-                }
+        for (int i = 0; i < textureWidth; i++) {
+            for (int j = 0; j < textureHeight; j++) {
+                float value = noise.data.Get (i + horizontalOffset, j + verticalOffset);
+                Color c = new Color (value, value, value);
+                texture.SetPixel (i, j, c);
             }
-
-            texture.Apply (false, true);
-            currentMaterial.mainTexture = texture;
         }
 
-        currentMaterial.SetTexture (name: "_DrawingTex", value : drawingTexture);
+        texture.Apply (false, true);
+        currentMaterial.mainTexture = texture;
 
         updateUIControls ();
         resetDrawingTexture ();
@@ -295,10 +340,10 @@ public class NoiseGenerator : MonoBehaviour {
         if (Layers == 0)
             darkColor = 1.0f;
 
-        currentMaterial.SetColor (name: "_Color1", value : color1);
-        currentMaterial.SetColor (name: "_Color2", value : color2);
-        currentMaterial.SetColor (name: "_Color3", value : color3);
-        currentMaterial.SetFloat (name: "_DarkColor", value : darkColor);
+        currentMaterial.SetColor (name: "_Color1", value: color1);
+        currentMaterial.SetColor (name: "_Color2", value: color2);
+        currentMaterial.SetColor (name: "_Color3", value: color3);
+        currentMaterial.SetFloat (name: "_DarkColor", value: darkColor);
     }
 
     void updateUIControls () {
@@ -476,7 +521,7 @@ public class NoiseGenerator : MonoBehaviour {
             offset = 0;
         if (offset < 0)
             offset = 1;
-        currentMaterial.SetFloat (name: "_Offset", value : offset);
+        currentMaterial.SetFloat (name: "_Offset", value: offset);
     }
 
     private void Update () {
@@ -489,7 +534,7 @@ public class NoiseGenerator : MonoBehaviour {
         if (Input.GetKeyDown (KeyCode.Escape)) {
             mainMenuButton.Toggle ();
         }
-        if (!EventSystem.current.IsPointerOverGameObject ()) {
+        if (EventSystem.current.IsPointerOverGameObject () && EventSystem.current.gameObject.name == "Image") {
             if (Input.GetMouseButtonDown (0)) {
                 isLeftMouseButton = true;
                 mouseIsDown = true;
@@ -523,12 +568,12 @@ public class NoiseGenerator : MonoBehaviour {
     }
     public void OnColorsChanged (float value) {
         ColorLayers = (int) value;
-        currentMaterial.SetFloat (name: "_ColorSteps", value : ColorLayers);
+        currentMaterial.SetFloat (name: "_ColorSteps", value: ColorLayers);
     }
     public void OnLayersChanged (float value) {
         Layers = (int) value;
         int resultLayers = (Layers == 0) ? 1 : Layers;
-        currentMaterial.SetFloat (name: "_DarkSteps", value : resultLayers);
+        currentMaterial.SetFloat (name: "_DarkSteps", value: resultLayers);
         setColorsToShader (currentPalette);
     }
     public void OnPaletteChanged (float value) {
@@ -551,5 +596,11 @@ public class NoiseGenerator : MonoBehaviour {
         Debug.Log ("OnColor3Changed " + value);
         currentPalette.ColorIndex3 = (int) value - 1;
         setColorsToShader (currentPalette);
+    }
+
+    public void OnCameraSelected(int cameraIndex)
+    {
+        this.cameraIndex = cameraIndex;
+        InitializeCamera();
     }
 }
