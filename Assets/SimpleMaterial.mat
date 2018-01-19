@@ -64,20 +64,20 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Floats:
     - _BumpScale: 1
-    - _ColorSteps: 1
+    - _ColorSteps: 3
     - _Cutoff: 0.5
-    - _DarkColor: 0.3901037
-    - _DarkSteps: 5
+    - _DarkColor: 0.3557602
+    - _DarkSteps: 3
     - _DetailNormalMapScale: 1
     - _DstBlend: 0
     - _GlossMapScale: 1
     - _Glossiness: 0.5
     - _GlossyReflections: 1
-    - _MainAdditionalTexRatio: 0.538
+    - _MainAdditionalTexRatio: 0.19
     - _Metallic: 0
     - _Mode: 0
     - _OcclusionStrength: 1
-    - _Offset: 0.41918284
+    - _Offset: 0.7920608
     - _Parallax: 0.02
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1

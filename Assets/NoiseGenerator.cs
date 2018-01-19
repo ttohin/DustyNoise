@@ -7,7 +7,6 @@ using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-
 public enum MouseMode {
     Simple,
     Overload,
@@ -80,12 +79,19 @@ public class NoiseGenerator : MonoBehaviour {
     private Color[] colors;
     public ToggleButton mainMenuButton;
     private System.DateTime? restartDate;
+    private System.DateTime? smileTime;
     private bool timerIsEnagled = false;
     private bool useCamera = false;
     private WebCamTexture cameraTexture;
 
     public Dropdown CameraSelector;
-    private int cameraIndex;
+    private int cameraIndex = 0;
+
+    public Slider MixCamera;
+    private float lensEffect = 0;
+    public float LensEffectSpeed = 0;
+    public float SmileSpeed = 0;
+    public Texture SmileTexture;
 
     static private Palette CreatePaletteWithDiffrentColors (Color[] colors) {
         var palette = new Palette (0, 0, 0);
@@ -121,76 +127,102 @@ public class NoiseGenerator : MonoBehaviour {
 
     private IEnumerator RestartTimer () {
         while (true) {
+            bool shouldRestart = false;
+            bool shouldSmile = false;
             if (restartDate == null || restartDate.Value > System.DateTime.Now) {
+                shouldRestart = true;
+            }
+            if (smileTime == null || smileTime.Value > System.DateTime.Now) {
+                shouldSmile = true;
+            }
+
+            if (!shouldRestart && !shouldSmile) {
                 yield return new WaitForSeconds (5);
             } else {
-                ScheduleRestart ();
-                GenerateRandomValues ();
+                if (shouldRestart) {
+                    ScheduleRestart ();
+                    GenerateRandomValues ();
+                }
+                if (shouldSmile) {
+                    smileTime = null;
+                    SmileSpeed = 0.1f;
+                }
             }
 
         }
     }
+    public void ScheduleSmile () {
+        smileTime = System.DateTime.Now + System.TimeSpan.FromSeconds (5);
+    }
 
     public void ScheduleRestart () {
-        restartDate = System.DateTime.Now + System.TimeSpan.FromMinutes (5);
+        restartDate = System.DateTime.Now + System.TimeSpan.FromSeconds (20);
     }
 
     public void EnableRestartTimer (bool enable) {
-        if (enable)
+        if (enable) {
             ScheduleRestart ();
-        else
+            ScheduleSmile ();
+        } else {
             restartDate = null;
+            smileTime = null;
+        }
     }
 
     private void InitializeCamera () {
 
-        if (cameraIndex == 0)
-        {
-            Debug.Log("disabling camera");
-            if (cameraTexture != null)
-            {
-                cameraTexture.Stop();
+        if (cameraIndex == 0) {
+            Debug.Log ("disabling camera");
+            if (cameraTexture != null) {
+                cameraTexture.Stop ();
                 cameraTexture = null;
             }
 
             cameraIndex = 0;
             currentMaterial.SetTexture ("_AdditionalTex", null);
+            MixCamera.value = 1.0f;
             return;
         }
 
-        if (WebCamTexture.devices.Length <= (cameraIndex - 1))
-        {
+        if (WebCamTexture.devices.Length <= (cameraIndex - 1)) {
             cameraIndex = 0;
-            UpdateCameras();
+            UpdateCameras ();
             return;
         }
 
         if (WebCamTexture.devices.Length == 0) {
-            Debug.Log("No devices cameras found");
+            Debug.Log ("No devices cameras found");
             return;
         }
 
-        Debug.Log("starting camera");
+        Debug.Log ("starting camera");
         var cameraDevice = WebCamTexture.devices[cameraIndex - 1];
         cameraTexture = new WebCamTexture (cameraDevice.name);
         cameraTexture.Play ();
         currentMaterial.SetTexture ("_AdditionalTex", cameraTexture);
+        MixCamera.value = 0.5f;
     }
 
-    private void UpdateCameras()
-    {
-        string[] cameraNames = WebCamTexture.devices.Select((camDevice) => camDevice.name).ToArray();
-        var options = cameraNames.Select((name) => new Dropdown.OptionData(name)).ToList();
-        options.Insert(0, new Dropdown.OptionData("none"));
+    private void UpdateCameras () {
+        string[] cameraNames = WebCamTexture.devices.Select ((camDevice) => camDevice.name).ToArray ();
+        var options = cameraNames.Select ((name) => new Dropdown.OptionData (name)).ToList ();
+        options.Insert (0, new Dropdown.OptionData ("Select camera (none)"));
         CameraSelector.options = options;
         CameraSelector.value = 0;
     }
 
     private void Start () {
 
-        currentMaterial = cameraImage.material;
+        // currentMaterial = cameraImage.material;
+        // cameraImage = GetComponent<RawImage>();
+        currentMaterial = GetComponent<Renderer> ().material;
 
-        UpdateCameras();
+        UpdateCameras ();
+        InitializeCamera ();
+
+        if (cameraIndex == 0) {
+            currentMaterial.SetTexture ("_AdditionalTex", SmileTexture);
+        }
 
         colors = new Color[] {
             hexToColor ("#AB584F"),
@@ -262,7 +294,7 @@ public class NoiseGenerator : MonoBehaviour {
         transform.localScale = new Vector3 ((float) quadWidth, (float) quadHeight, 1.0f);
 
         GenerateRandomValues ();
-        currentMaterial.SetTexture (name: "_DrawingTex", value: drawingTexture);
+        currentMaterial.SetTexture (name: "_DrawingTex", value : drawingTexture);
         StartCoroutine (RestartTimer ());
     }
 
@@ -305,8 +337,10 @@ public class NoiseGenerator : MonoBehaviour {
 
         ColorLayers = 1 + (int) Mathf.Floor (Random.value * 2);
         Layers = ColorLayers * (2 + (int) Mathf.Floor (Random.value * 5));
-        currentMaterial.SetFloat (name: "_DarkSteps", value: Layers);
-        currentMaterial.SetFloat (name: "_ColorSteps", value: ColorLayers);
+        currentMaterial.SetFloat (name: "_DarkSteps", value : Layers);
+        currentMaterial.SetFloat (name: "_ColorSteps", value : ColorLayers);
+
+        RandomizeMirrorEffects ();
 
         var texture = new Texture2D (textureWidth, textureHeight);
         texture.filterMode = FilterMode.Point;
@@ -332,6 +366,25 @@ public class NoiseGenerator : MonoBehaviour {
         resetDrawingTexture ();
     }
 
+    private void RandomizeMirrorEffects () {
+        if (Random.value < 0.5f) {
+            float leftMirrorEdge = 0;
+            float rightMirrorEdge = 1.0f;
+            currentMaterial.SetFloat (name: "_VerticalMirror1", value : leftMirrorEdge);
+            currentMaterial.SetFloat (name: "_VerticalMirror2", value : rightMirrorEdge);
+        } else if (Random.value < 0.5f) {
+            float leftMirrorEdge = 0;
+            float rightMirrorEdge = 0.5f;
+            currentMaterial.SetFloat (name: "_VerticalMirror1", value : leftMirrorEdge);
+            currentMaterial.SetFloat (name: "_VerticalMirror2", value : rightMirrorEdge);
+        } else {
+            float leftMirrorEdge = Random.Range (0.0f, 0.4f);
+            float rightMirrorEdge = Random.Range (0.6f, 1.0f);
+            currentMaterial.SetFloat (name: "_VerticalMirror1", value : leftMirrorEdge);
+            currentMaterial.SetFloat (name: "_VerticalMirror2", value : rightMirrorEdge);
+        }
+    }
+
     private void setColorsToShader (Palette palette) {
         var color1 = colors[palette.ColorIndex1];
         var color2 = colors[palette.ColorIndex2];
@@ -340,10 +393,10 @@ public class NoiseGenerator : MonoBehaviour {
         if (Layers == 0)
             darkColor = 1.0f;
 
-        currentMaterial.SetColor (name: "_Color1", value: color1);
-        currentMaterial.SetColor (name: "_Color2", value: color2);
-        currentMaterial.SetColor (name: "_Color3", value: color3);
-        currentMaterial.SetFloat (name: "_DarkColor", value: darkColor);
+        currentMaterial.SetColor (name: "_Color1", value : color1);
+        currentMaterial.SetColor (name: "_Color2", value : color2);
+        currentMaterial.SetColor (name: "_Color3", value : color3);
+        currentMaterial.SetFloat (name: "_DarkColor", value : darkColor);
     }
 
     void updateUIControls () {
@@ -521,7 +574,41 @@ public class NoiseGenerator : MonoBehaviour {
             offset = 0;
         if (offset < 0)
             offset = 1;
-        currentMaterial.SetFloat (name: "_Offset", value: offset);
+        currentMaterial.SetFloat (name: "_Offset", value : offset);
+
+        if (LensEffectSpeed != 0) {
+            lensEffect += LensEffectSpeed * 0.01f;
+            if (lensEffect > 0) {
+                LensEffectSpeed *= -1;
+                lensEffect = 0;
+            }
+
+            if (lensEffect < -0.1f) {
+                LensEffectSpeed *= -1;
+                lensEffect = -0.1f;
+            }
+
+            currentMaterial.SetFloat (name: "_LensEffect", value : lensEffect);
+        }
+
+        if (SmileSpeed != 0) {
+
+            var smileValue = MixCamera.value;
+            smileValue += SmileSpeed;
+
+            if (smileValue >= 1) {
+                SmileSpeed *= -1;
+                smileValue = 1;
+            }
+
+            if (smileValue <= 0) {
+                SmileSpeed = 0;
+                smileValue = 0;
+                ScheduleSmile ();
+            }
+
+            MixCamera.value = smileValue;
+        }
     }
 
     private void Update () {
@@ -534,7 +621,7 @@ public class NoiseGenerator : MonoBehaviour {
         if (Input.GetKeyDown (KeyCode.Escape)) {
             mainMenuButton.Toggle ();
         }
-        if (EventSystem.current.IsPointerOverGameObject () && EventSystem.current.gameObject.name == "Image") {
+        if (!EventSystem.current.IsPointerOverGameObject ()) {
             if (Input.GetMouseButtonDown (0)) {
                 isLeftMouseButton = true;
                 mouseIsDown = true;
@@ -551,6 +638,7 @@ public class NoiseGenerator : MonoBehaviour {
         if (Input.GetMouseButtonUp (0) || Input.GetMouseButtonUp (1)) {
             mouseIsDown = false;
         }
+
         UpdateTexture ();
         UpdateShaderParams ();
     }
@@ -568,12 +656,12 @@ public class NoiseGenerator : MonoBehaviour {
     }
     public void OnColorsChanged (float value) {
         ColorLayers = (int) value;
-        currentMaterial.SetFloat (name: "_ColorSteps", value: ColorLayers);
+        currentMaterial.SetFloat (name: "_ColorSteps", value : ColorLayers);
     }
     public void OnLayersChanged (float value) {
         Layers = (int) value;
         int resultLayers = (Layers == 0) ? 1 : Layers;
-        currentMaterial.SetFloat (name: "_DarkSteps", value: resultLayers);
+        currentMaterial.SetFloat (name: "_DarkSteps", value : resultLayers);
         setColorsToShader (currentPalette);
     }
     public void OnPaletteChanged (float value) {
@@ -598,9 +686,12 @@ public class NoiseGenerator : MonoBehaviour {
         setColorsToShader (currentPalette);
     }
 
-    public void OnCameraSelected(int cameraIndex)
-    {
+    public void OnCameraSelected (int cameraIndex) {
         this.cameraIndex = cameraIndex;
-        InitializeCamera();
+        InitializeCamera ();
+    }
+
+    public void OnMixCameraChanged (float value) {
+        currentMaterial.SetFloat (name: "_MainAdditionalTexRatio", value : value);
     }
 }

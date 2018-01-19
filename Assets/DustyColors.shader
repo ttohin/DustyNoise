@@ -13,6 +13,9 @@
 		_DarkColor ("DarkColor", Range(0,1)) = 0.3
         _DarkSteps("DarkSteps", Range(0,100)) = 12
         _ColorSteps("ColorSteps", Range(0,100)) = 3
+        _LensEffect("LensEvvect", Range(-0.1,0)) = 0
+        _VerticalMirror1("VerticalMirror1", Range(0,1)) = 0.1
+        _VerticalMirror2("VerticalMirror2", Range(0,1)) = 0.9
 	}
 	SubShader
 	{
@@ -54,6 +57,9 @@
 		    float _DarkColor;
 		    float _DarkSteps;
 		    float _ColorSteps;
+		    float _LensEffect;
+			float _VerticalMirror1;
+			float _VerticalMirror2;
 			
 			v2f vert (appdata v)
 			{
@@ -73,14 +79,32 @@
             {
                 return (color1 * ratio) + (color2 * (1.0 - ratio));
             }
+
+			float2 mirror(float2 textureCoordinate)
+			{
+				if (textureCoordinate.x < _VerticalMirror1)
+					textureCoordinate.x = _VerticalMirror1 + (_VerticalMirror1 - textureCoordinate.x);
+				if (textureCoordinate.x > _VerticalMirror2)
+					textureCoordinate.x = _VerticalMirror2 - (textureCoordinate.x - _VerticalMirror2);
+				return textureCoordinate;
+			}
 			
 			float4 frag (v2f i) : SV_Target
 			{
-				float4 col = tex2D(_MainTex, i.uv);
-				float4 additionalTextureColor = tex2D(_AdditionalTex, i.uv);
+				float2 textureCoordinate = i.uv;
+
+				float2 offset = 2.0 * (textureCoordinate + float2(-0.5, -0.5));
+				float distanceFromCenter = length(offset);
+				offset *= distanceFromCenter * 2;
+				textureCoordinate += offset * _LensEffect;
+
+				textureCoordinate = mirror(textureCoordinate);
+
+				float4 col = tex2D(_MainTex, textureCoordinate);
+				float4 additionalTextureColor = tex2D(_AdditionalTex, textureCoordinate);
 
                 float value = MixColors(col, additionalTextureColor, _MainAdditionalTexRatio) + _Offset;
-                fixed4 drawingTextureColor = tex2D(_DrawingTex, i.uv);
+                fixed4 drawingTextureColor = tex2D(_DrawingTex, textureCoordinate);
                 value = value + drawingTextureColor.r;
 
                 float darkLevel = GetValueFromStep(value, _DarkSteps);
